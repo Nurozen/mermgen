@@ -1,4 +1,4 @@
-# MermGen (WIP) - Structure from the Swamp
+# MermGen - Structure from the Swamp (WIP)
 
 
 <img src="assets/mermgen.png" alt="MermGen Logo" width="300" />
