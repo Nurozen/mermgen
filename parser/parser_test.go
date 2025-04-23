@@ -48,60 +48,24 @@ func main() {
 	}
 
 	// Parse the file
-	result, err := parseGoFile(filePath)
+	fileData, err := parseGoFile(filePath)
 	if err != nil {
 		t.Fatalf("Failed to parse Go file: %v", err)
 	}
 
 	// Verify the parsed results
-	packageName, ok := result["package"].(string)
-	if !ok || packageName != "sample" {
-		t.Errorf("Expected package name 'sample', got '%v'", result["package"])
+	if fileData.PackageName != "sample" {
+		t.Errorf("Expected package name 'sample', got '%v'", fileData.PackageName)
 	}
 
-	imports, ok := result["imports"].([]string)
-	if !ok {
-		t.Errorf("Failed to extract imports")
-	} else {
-		if len(imports) != 2 {
-			t.Errorf("Expected 2 imports, got %d", len(imports))
-		}
+	// Check content was correctly stored
+	if fileData.Content != sampleCode {
+		t.Errorf("File content does not match original")
 	}
 
-	types, ok := result["types"].([]map[string]interface{})
-	if !ok {
-		t.Errorf("Failed to extract types")
-	} else {
-		if len(types) != 1 {
-			t.Errorf("Expected 1 type, got %d", len(types))
-		} else {
-			typeInfo := types[0]
-			if typeName, ok := typeInfo["name"].(string); !ok || typeName != "Person" {
-				t.Errorf("Expected type name 'Person', got '%v'", typeInfo["name"])
-			}
-			
-			if kind, ok := typeInfo["kind"].(string); !ok || kind != "struct" {
-				t.Errorf("Expected kind 'struct', got '%v'", typeInfo["kind"])
-			}
-		}
-	}
-
-	functions, ok := result["functions"].([]map[string]interface{})
-	if !ok {
-		t.Errorf("Failed to extract functions")
-	} else {
-		// Should find the main function
-		foundMain := false
-		for _, fn := range functions {
-			if name, ok := fn["name"].(string); ok && name == "main" {
-				foundMain = true
-				break
-			}
-		}
-		
-		if !foundMain {
-			t.Errorf("Failed to find 'main' function")
-		}
+	// Verify parse tree was created
+	if fileData.ParseTree == "" {
+		t.Errorf("Parse tree is empty")
 	}
 }
 
@@ -171,33 +135,25 @@ func (s *Service) Name() string {
 	}
 
 	// Verify the parsed project structure
-	if len(projectData.Packages) != 2 {
-		t.Errorf("Expected 2 packages, got %d", len(projectData.Packages))
+	if len(projectData.Files) != 2 {
+		t.Errorf("Expected 2 files, got %d", len(projectData.Files))
 	}
 
-	// Check for the main package
-	mainPkg, exists := projectData.Packages["main"]
+	// Check for the main.go file
+	mainFilePath := filepath.Join(tmpDir, "main.go")
+	mainFileData, exists := projectData.Files[mainFilePath]
 	if !exists {
-		t.Error("Main package not found")
-	} else if len(mainPkg.Functions) == 0 {
-		t.Error("No functions found in main package")
+		t.Error("Main file not found")
+	} else if mainFileData.PackageName != "main" {
+		t.Errorf("Expected package 'main', got '%s'", mainFileData.PackageName)
 	}
 
-	// Check for the pkg package
-	pkgPkg, exists := projectData.Packages["pkg"]
+	// Check for the service.go file
+	serviceFilePath := filepath.Join(pkgDir, "service.go")
+	serviceFileData, exists := projectData.Files[serviceFilePath]
 	if !exists {
-		t.Error("pkg package not found")
-	} else {
-		// Check for the Service type
-		_, exists := pkgPkg.Types["Service"]
-		if !exists {
-			t.Error("Service type not found in pkg package")
-		}
-
-		// Check for the NewService function
-		_, exists = pkgPkg.Functions["NewService"]
-		if !exists {
-			t.Error("NewService function not found in pkg package")
-		}
+		t.Error("Service file not found")
+	} else if serviceFileData.PackageName != "pkg" {
+		t.Errorf("Expected package 'pkg', got '%s'", serviceFileData.PackageName)
 	}
-} 
+}

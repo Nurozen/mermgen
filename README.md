@@ -1,5 +1,7 @@
 # MermGen
 
+<img src="assets/mermgen.png" alt="MermGen Logo" width="300" />
+
 MermGen is a tool that generates Mermaid diagrams from Go projects using AI agents.
 
 ## Features
