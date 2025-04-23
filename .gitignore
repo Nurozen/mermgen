@@ -1,0 +1,27 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+mermgen
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output directories
+diagrams/
+out/
+
+# Generated files
+vendor/
+.env*
+
+# Dependency directories (remove the comment below if you're using vendoring)
+# vendor/
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo 
