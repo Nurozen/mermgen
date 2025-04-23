@@ -249,11 +249,14 @@ func callAI(prompt map[string]interface{}, diagramType string) (string, error) {
 	var systemPrompt string
 	switch diagramType {
 	case "class":
-		systemPrompt = "You are an expert in Go programming and Mermaid diagrams. " +
-			"Your task is to analyze the Go code structure provided and generate a comprehensive Mermaid class diagram. " +
-			"Focus on showing the relationships between types, their fields, and methods. " +
-			"If the data looks incomplete, do your best to create a meaningful diagram with what's available, be as verbose as possible. " +
-			"Only return the Mermaid diagram code, nothing else."
+		systemPrompt = "You are an expert in Go programming and Mermaid diagrams. Your task is to analyze the Go code structure provided and generate a comprehensive Mermaid class diagram. Focus on showing the relationships between types, their fields, and methods." +
+			"When writing method signatures:" +
+			"Simplify complex type definitions" +
+			"Avoid using parentheses in return values" +
+			"Use simplified notation like 'methodName(param) type' instead of complex Go syntax" +
+			"For methods with multiple return values, use 'methodName(param) returnType1, returnType2'" +
+			"Consider removing parameter types if they're complex" +
+			"Be thorough in showing relationships between classes, but ensure the syntax is compatible with Mermaid's parser. Only return the Mermaid diagram code, nothing else."
 	case "package":
 		systemPrompt = "You are an expert in Go programming and Mermaid diagrams. " +
 			"Your task is to analyze the Go code structure provided and generate a Mermaid package diagram showing " +
@@ -281,14 +284,18 @@ func callAI(prompt map[string]interface{}, diagramType string) (string, error) {
 	// Prepare Claude API request
 	requestBody := map[string]interface{}{
 		"model":       "claude-3-7-sonnet-20250219",
-		"max_tokens":  4096,
-		"temperature": 0.2,
+		"max_tokens":  64000,
+		"temperature": 1,
 		"system":      systemPrompt,
 		"messages": []map[string]interface{}{
 			{
 				"role":    "user",
 				"content": promptStr,
 			},
+		},
+		"thinking": map[string]interface{}{
+			"type":          "enabled",
+			"budget_tokens": 16000,
 		},
 	}
 
@@ -327,7 +334,7 @@ func callAI(prompt map[string]interface{}, diagramType string) (string, error) {
 		req.Header.Set("anthropic-version", "2023-06-01")
 
 		// Send request
-		client := &http.Client{Timeout: 60 * time.Second}
+		client := &http.Client{Timeout: 6000 * time.Second}
 		resp, err := client.Do(req)
 		if err != nil {
 			apiError = fmt.Errorf("API request error: %w", err)
