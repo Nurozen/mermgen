@@ -257,13 +257,13 @@ func callAI(prompt map[string]interface{}, diagramType string) (string, error) {
 	case "package":
 		systemPrompt = "You are an expert in Go programming and Mermaid diagrams. " +
 			"Your task is to analyze the Go code structure provided and generate a Mermaid package diagram showing " +
-			"dependencies between packages. If the data looks incomplete, create a basic package dependency diagram " +
-			"with the information available. Only return the Mermaid diagram code, nothing else."
+			"dependencies between packages. If the data looks incomplete, create a in depth package dependency diagram " +
+			"with the information available. Be as verbose as possible. Only return the Mermaid diagram code, nothing else."
 	case "sequence":
 		systemPrompt = "You are an expert in Go programming and Mermaid diagrams. " +
 			"Your task is to create a Mermaid sequence diagram showing the flow of execution between key components " +
-			"based on the Go structure provided. If the data looks incomplete, create a basic sequence diagram " +
-			"showing common interactions. Only return the Mermaid diagram code, nothing else."
+			"based on the Go structure provided. If the data looks incomplete, create a in depth sequence diagram " +
+			"showing common interactions. Be as verbose as possible. Only return the Mermaid diagram code, nothing else."
 	default:
 		systemPrompt = "You are an expert in Go programming and Mermaid diagrams. " +
 			"Your task is to analyze Go code structure and generate a Mermaid diagram that " +
@@ -272,7 +272,7 @@ func callAI(prompt map[string]interface{}, diagramType string) (string, error) {
 
 	// Create a more detailed prompt that includes explicit instructions
 	promptStr := fmt.Sprintf("Generate a Mermaid %s diagram based on the following Go code structure:\n\n%s\n\n"+
-		"Even if you think the data is incomplete, create the best diagram possible with what's provided.",
+		"Even if you think the data is incomplete, create the best diagram possible with what's provided. Prioritize human readability. Always double check the output for mermaid syntax errors.",
 		diagramType, string(promptJSON))
 
 	// Create client with API key
