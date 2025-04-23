@@ -1,16 +1,16 @@
 package generator
 
 import (
-	"context"
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/Nurozen/mermgen/parser"
-	"github.com/google/generative-ai-go/genai"
-	"google.golang.org/api/option"
 )
 
 // Global rate limiter for API calls
@@ -229,12 +229,12 @@ func extractImportsSection(content string) string {
 	return strings.Join(result, "\n")
 }
 
-// callAI calls Google's Generative AI service to generate a Mermaid diagram
+// callAI calls Anthropic's Claude AI service to generate a Mermaid diagram
 func callAI(prompt map[string]interface{}, diagramType string) (string, error) {
 	// Get API key from environment
-	apiKey := os.Getenv("GOOGLE_API_KEY")
+	apiKey := os.Getenv("ANTHROPIC_API_KEY")
 	if apiKey == "" {
-		fmt.Println("GOOGLE_API_KEY not set, using fallback diagram")
+		fmt.Println("ANTHROPIC_API_KEY not set, using fallback diagram")
 		return createFallbackDiagram(diagramType), nil
 	}
 
@@ -275,31 +275,31 @@ func callAI(prompt map[string]interface{}, diagramType string) (string, error) {
 		"Even if you think the data is incomplete, create the best diagram possible with what's provided. Prioritize human readability. Always double check the output for mermaid syntax errors.",
 		diagramType, string(promptJSON))
 
-	// Create client with API key
-	ctx := context.Background()
-	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
-	if err != nil {
-		fmt.Printf("Error creating client: %v, using fallback diagram\n", err)
-		return createFallbackDiagram(diagramType), nil
-	}
-	defer client.Close()
+	// Create request to Claude API
+	requestURL := "https://api.anthropic.com/v1/messages"
 
-	// Use Gemini model
-	model := client.GenerativeModel("gemini-2.0-flash")
-
-	// Set system instruction
-	model.SystemInstruction = &genai.Content{
-		Parts: []genai.Part{
-			genai.Text(systemPrompt),
+	// Prepare Claude API request
+	requestBody := map[string]interface{}{
+		"model":       "claude-3-7-sonnet-20250219",
+		"max_tokens":  4096,
+		"temperature": 0.2,
+		"system":      systemPrompt,
+		"messages": []map[string]interface{}{
+			{
+				"role":    "user",
+				"content": promptStr,
+			},
 		},
 	}
 
-	// Configure temperature
-	temperature := float32(0.2)
-	model.Temperature = &temperature
+	requestJSON, err := json.Marshal(requestBody)
+	if err != nil {
+		fmt.Printf("Error creating request body: %v, using fallback diagram\n", err)
+		return createFallbackDiagram(diagramType), nil
+	}
 
 	// Try API call with retries and rate limiting
-	var response *genai.GenerateContentResponse
+	var responseBody []byte
 	var apiError error
 
 	for retry := 0; retry < maxRetries; retry++ {
@@ -314,13 +314,40 @@ func callAI(prompt map[string]interface{}, diagramType string) (string, error) {
 		// Update last API call time
 		lastAPICall = time.Now()
 
-		// Create request and send
-		response, err = model.GenerateContent(ctx, genai.Text(promptStr))
+		// Create HTTP request
+		req, err := http.NewRequest("POST", requestURL, bytes.NewBuffer(requestJSON))
 		if err != nil {
-			apiError = fmt.Errorf("API error: %w", err)
+			apiError = fmt.Errorf("error creating request: %w", err)
+			continue
+		}
+
+		// Set headers
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("x-api-key", apiKey)
+		req.Header.Set("anthropic-version", "2023-06-01")
+
+		// Send request
+		client := &http.Client{Timeout: 60 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil {
+			apiError = fmt.Errorf("API request error: %w", err)
+			continue
+		}
+
+		// Read response
+		defer resp.Body.Close()
+		responseBody, err = io.ReadAll(resp.Body)
+		if err != nil {
+			apiError = fmt.Errorf("error reading response: %w", err)
+			continue
+		}
+
+		// Check status code
+		if resp.StatusCode != http.StatusOK {
+			apiError = fmt.Errorf("API error status %d: %s", resp.StatusCode, string(responseBody))
 
 			// For rate limiting errors, wait longer and retry
-			if strings.Contains(err.Error(), "rate limit") || strings.Contains(err.Error(), "429") {
+			if resp.StatusCode == 429 {
 				waitTime := time.Duration(4<<retry) * time.Second
 				fmt.Printf("Rate limit exceeded. Retrying in %v (retry %d/%d)...\n",
 					waitTime, retry+1, maxRetries)
@@ -328,7 +355,6 @@ func callAI(prompt map[string]interface{}, diagramType string) (string, error) {
 				continue
 			}
 
-			// For other errors, try again
 			continue
 		}
 
@@ -343,22 +369,35 @@ func callAI(prompt map[string]interface{}, diagramType string) (string, error) {
 		return createFallbackDiagram(diagramType), nil
 	}
 
-	// Check if we got a valid response
-	if response == nil || len(response.Candidates) == 0 ||
-		len(response.Candidates[0].Content.Parts) == 0 {
-		fmt.Println("Invalid or empty response from API, using fallback diagram")
+	// Parse response
+	var response struct {
+		Content []struct {
+			Type string `json:"type"`
+			Text string `json:"text"`
+		} `json:"content"`
+	}
+
+	if err := json.Unmarshal(responseBody, &response); err != nil {
+		fmt.Printf("Error parsing response: %v, using fallback diagram\n", err)
 		return createFallbackDiagram(diagramType), nil
 	}
 
 	// Extract text from response
-	content, ok := response.Candidates[0].Content.Parts[0].(genai.Text)
-	if !ok {
-		fmt.Println("Could not parse response content, using fallback diagram")
+	var content string
+	for _, part := range response.Content {
+		if part.Type == "text" {
+			content = part.Text
+			break
+		}
+	}
+
+	if content == "" {
+		fmt.Println("No text content found in API response, using fallback diagram")
 		return createFallbackDiagram(diagramType), nil
 	}
 
 	// Extract Mermaid code from content
-	mermaidCode := extractMermaidCode(string(content))
+	mermaidCode := extractMermaidCode(content)
 	if mermaidCode == "" {
 		fmt.Println("No Mermaid code found in API response, using fallback diagram")
 		return createFallbackDiagram(diagramType), nil
