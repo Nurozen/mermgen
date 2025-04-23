@@ -41,7 +41,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to clone repository: %v", err)
 	}
-	//defer os.RemoveAll(repoPath) // Clean up the cloned repo after we're done
+	defer os.RemoveAll(repoPath) // Clean up the cloned repo after we're done
 
 	// Parse the Go code with tree-sitter
 	fmt.Println("Parsing Go code...")
