@@ -15,7 +15,7 @@ MermGen is a tool that generates Mermaid diagrams from Go projects using AI agen
 - Go 1.21+
 - Tree-sitter
 - Git
-- OpenAI API key
+- Google API key for Gemini
 
 ## Installation
 
@@ -25,10 +25,10 @@ go get github.com/Nurozen/mermgen
 
 ## Usage
 
-Set your OpenAI API key as an environment variable:
+Set your Google API key as an environment variable:
 
 ```bash
-export OPENAI_API_KEY="your-api-key"
+export GOOGLE_API_KEY="your-api-key"
 ```
 
 Run the tool:
